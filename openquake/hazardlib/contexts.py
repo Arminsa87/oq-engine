@@ -326,49 +326,61 @@ class ContextMaker(object):
                 pne_array[:, slc, i] = pno
         return pne_array
 
-    def disaggregate(self, sitecol, ruptures, iml4, truncnorm, epsilons,
+    def disaggregate(self, sitecol, ruptures, iml3, truncnorm, epsilons,
                      monitor=Monitor()):
         """
         Disaggregate (separate) PoE in different contributions.
 
         :param sitecol: a SiteCollection with N sites
         :param ruptures: an iterator over ruptures with the same TRT
-        :param iml4: a 4d array of IMLs of shape (N, R, M, P)
+        :param iml3: a 3D array of IMLs of shape (N, M, P)
         :param truncnorm: an instance of scipy.stats.truncnorm
         :param epsilons: the epsilon bins
         :param monitor: a Monitor instance
         :returns:
             an AccumDict with keys (poe, imt, rlzi) and mags, dists, lons, lats
         """
+        sitecols = {}
+        imls = {}
+        for sid, iml2 in zip(sitecol.sids, iml3):
+            try:
+                gsim = self.gsim_by_rlzi[iml2.rlzi]
+            except KeyError:
+                continue
+            sitecols[sid] = sitecol.filtered([sid])
+            imls[sid] = iml2
         acc = AccumDict(accum=[])
         ctx_mon = monitor('disagg_contexts', measuremem=False)
         pne_mon = monitor('disaggregate_pne', measuremem=False)
         clo_mon = monitor('get_closest', measuremem=False)
         for rupture in ruptures:
-            with ctx_mon:
-                orig_dctx = DistancesContext(
-                    (param, get_distances(rupture, sitecol, param))
-                    for param in self.REQUIRES_DISTANCES)
-                self.add_rup_params(rupture)
+            self.add_rup_params(rupture)
             with clo_mon:  # this is faster than computing orig_dctx
                 closest_points = rupture.surface.get_closest_points(sitecol)
-            cache = {}
-            for rlz, gsim in self.gsim_by_rlzi.items():
+            dists = []
+            for sid, sitecol in sitecols.items():
+                iml2 = imls[sid]
+                with ctx_mon:
+                    orig_dctx = DistancesContext(
+                        (param, get_distances(rupture, sitecol, param))
+                        for param in self.REQUIRES_DISTANCES)
+                cache = {}
                 dctx = orig_dctx.roundup(gsim.minimum_distance)
-                for m, imt in enumerate(iml4.imts):
-                    for p, poe in enumerate(iml4.poes_disagg):
-                        iml = tuple(iml4.array[:, rlz, m, p])
+                for m, imt in enumerate(iml2.imts):
+                    for p, poe in enumerate(iml2.poes_disagg):
+                        iml = iml2[m, p]
                         try:
                             pne = cache[gsim, imt, iml]
                         except KeyError:
                             with pne_mon:
                                 pne = gsim.disaggregate_pne(
                                     rupture, sitecol, dctx, imt, iml,
-                                    truncnorm, epsilons)
+                                    truncnorm, epsilons)[0]  # shape (n_eps,)
                                 cache[gsim, imt, iml] = pne
-                        acc[poe, str(imt), rlz].append(pne)
+                        acc[sid, poe, str(imt), iml2.rlzi].append(pne)
+                dists.append(getattr(dctx, self.filter_distance).squeeze())
             acc['mags'].append(rupture.mag)
-            acc['dists'].append(getattr(dctx, self.filter_distance))
+            acc['dists'].append(numpy.array(dists))
             acc['lons'].append(closest_points.lons)
             acc['lats'].append(closest_points.lats)
         return acc
