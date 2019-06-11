@@ -2,17 +2,17 @@
 <nrml xmlns:gml="http://www.opengis.net/gml"
       xmlns="http://openquake.org/xmlns/nrml/0.4">
     <simpleFaultRupture>
-        <magnitude>7.0</magnitude>
-        <rake>90.0</rake>
-        <hypocenter lat="0.0" lon="0.0" depth="10.0"/>
+        <magnitude>7.5</magnitude>
+        <rake>180.0</rake>
+        <hypocenter lat="46.24" lon="38.15" depth="10.0"/>
         <simpleFaultGeometry>
             <gml:LineString>
                 <gml:posList>
-                    28 80.3
-                    28  80.6
+                    150 11.9
+                    150  11.9
                 </gml:posList>
             </gml:LineString>
-            <dip>90.0</dip>
+            <dip>85.0</dip>
             <upperSeismoDepth>2.0</upperSeismoDepth>
             <lowerSeismoDepth>20.0</lowerSeismoDepth>
         </simpleFaultGeometry>
